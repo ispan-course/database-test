@@ -21,6 +21,11 @@ namespace DatabaseTest
         return;
       }
 
+      if (TestSQL() == false)
+      {
+        return;
+      }
+
       m_connection.Close();
       m_connection.Dispose();
     }
@@ -41,12 +46,80 @@ namespace DatabaseTest
       {
         var currentFile = new System.Diagnostics.StackTrace(true).GetFrame(0).GetFileName();
         var currentLine = new System.Diagnostics.StackTrace(true).GetFrame(0).GetFileLineNumber();
-        
+
         Console.WriteLine("# ERR: SQLException in " + currentFile + ":" + currentLine);
         Console.WriteLine("# ERR: " + ex.Message);
         Console.WriteLine("# ERR: MySQL error code: " + ex.Number);
 
         return false;
+      }
+    }
+
+    private static bool TestSQL()
+    {
+      Console.WriteLine("Starting Testing SQL...");
+
+      // first query
+      var reader = ExecuteQuery("select * from `member`");
+      if (reader != null)
+      {
+        do
+        {
+          if (reader.HasRows == false)
+          {
+            break;
+          }
+
+          var fieldCount = reader.FieldCount;
+
+          while (reader.Read())
+          {
+            for (var i = 0; i < fieldCount; i++)
+            {
+              var name = reader.GetName(i);
+              var obj = reader.GetValue(i);
+              Console.Write("{0}: {1}, ", name, obj.ToString());
+            }
+            Console.WriteLine("");
+          }
+        } while (reader.NextResult());
+
+        reader.Dispose();
+      }
+      else
+      {
+        Console.Write("Query Failed!");
+        return false;
+      }
+
+      return true;
+    }
+
+    private static MySqlDataReader ExecuteQuery(string command)
+    {
+      var sqlCommand = new MySqlCommand("", m_connection);
+
+      try
+      {
+        sqlCommand.CommandText = command;
+
+        var dataReader = sqlCommand.ExecuteReader();
+
+        return dataReader;
+      }
+      catch (MySqlException ex)
+      {
+        var currentFile = new System.Diagnostics.StackTrace(true).GetFrame(0).GetFileName();
+        var currentLine = new System.Diagnostics.StackTrace(true).GetFrame(0).GetFileLineNumber();
+
+        Console.WriteLine("# ERR: SQLException in " + currentFile + ":" + currentLine);
+        Console.WriteLine("# ERR: " + ex.Message);
+        Console.WriteLine("# ERR: MySQL error code: " + ex.Number);
+        return null;
+      }
+      finally
+      {
+        sqlCommand.Dispose();
       }
     }
   }
