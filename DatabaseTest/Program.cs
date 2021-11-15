@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Generic;
 using MySql.Data.MySqlClient;
 
 namespace DatabaseTest
@@ -22,6 +23,11 @@ namespace DatabaseTest
       }
 
       if (TestSQL() == false)
+      {
+        return;
+      }
+
+      if (TestPreparedSQL() == false)
       {
         return;
       }
@@ -94,40 +100,82 @@ namespace DatabaseTest
       }
 
       // first insert
-      var id1 = (int)( System.DateTime.Now.Ticks & 0x00FFFFFF );
-      var date1 = System.DateTime.Now.ToString( "yyyy/MM/dd" );
+      var id1 = (int)(System.DateTime.Now.Ticks & 0x00FFFFFF);
+      var date1 = System.DateTime.Now.ToString("yyyy/MM/dd");
       var rows = ExecuteNonQuery($"INSERT INTO member(`id`, `name`, `dob`) VALUES({id1}, {id1}, \"{date1}\")");
-      if( rows != 1 )
+      if (rows != 1)
       {
-        Console.Write( "Insert Failed!" );
+        Console.Write("Insert Failed!");
         return false;
       }
 
       // first delete
       rows = ExecuteNonQuery($"DELETE FROM member WHERE `id`={id1}");
-      if( rows != 1 )
+      if (rows != 1)
       {
-        Console.Write( "delete Failed!" );
+        Console.Write("delete Failed!");
         return false;
       }
 
       // second insert
-      var id2 = (int)( System.DateTime.Now.Ticks & 0x00FFFFFF );
-      var date2 = System.DateTime.Now.ToString( "yyyy/MM/dd hh:mm:ss" );
+      var id2 = (int)(System.DateTime.Now.Ticks & 0x00FFFFFF);
+      var date2 = System.DateTime.Now.ToString("yyyy/MM/dd hh:mm:ss");
       rows = ExecuteNonQuery($"INSERT INTO member(`id`, `name`, `dob`) VALUES({id2}, {id2}, \"{date2}\")");
-      if( rows != 1 )
+      if (rows != 1)
       {
-        Console.Write( "Insert Failed!" );
+        Console.Write("Insert Failed!");
         return false;
       }
 
       // first update
-      var id3 = (int)( System.DateTime.Now.Ticks & 0x00FFFFFF );
-      var date3 = System.DateTime.Now.ToString( "yyyy/MM/dd" );
+      var id3 = (int)(System.DateTime.Now.Ticks & 0x00FFFFFF);
+      var date3 = System.DateTime.Now.ToString("yyyy/MM/dd");
       rows = ExecuteNonQuery($"UPDATE member set `name`='{id3}', `dob`='{date3}' WHERE `id`='{id2}'");
-      if( rows != 1 )
+      if (rows != 1)
       {
-        Console.Write( "Update Failed!" );
+        Console.Write("Update Failed!");
+        return false;
+      }
+
+      return true;
+    }
+
+    private static bool TestPreparedSQL()
+    {
+      Console.WriteLine("Starting Testing Prepared SQL...");
+
+      // first query
+      var mapParams = new Dictionary<string, object> { { "@sex", "M" } };
+      var reader = ExecutePreparedQuery("SELECT * FROM `member` WHERE `sex`=@sex", mapParams);
+      if (reader != null)
+      {
+        do
+        {
+          if (reader.HasRows == false)
+          {
+            break;
+          }
+
+          var fieldCount = reader.FieldCount;
+
+          while (reader.Read())
+          {
+            for (var i = 0; i < fieldCount; i++)
+            {
+              var name = reader.GetName(i);
+              var obj = reader.GetValue(i);
+              Console.Write("{0}: {1}, ", name, obj.ToString());
+            }
+
+            Console.WriteLine("");
+          }
+        } while (reader.NextResult());
+
+        reader.Dispose();
+      }
+      else
+      {
+        Console.Write("Query Failed!");
         return false;
       }
 
@@ -184,6 +232,42 @@ namespace DatabaseTest
         Console.WriteLine("# ERR: MySQL error code: " + ex.Number);
 
         return 0;
+      }
+      finally
+      {
+        sqlCommand.Dispose();
+      }
+    }
+
+    private static MySqlDataReader ExecutePreparedQuery(string command, Dictionary<string, object> mapParams = null)
+    {
+      var sqlCommand = new MySqlCommand("", m_connection);
+
+      try
+      {
+        sqlCommand.CommandText = command;
+
+        if (mapParams != null)
+        {
+          sqlCommand.Prepare();
+          foreach (var pair in mapParams)
+          {
+            sqlCommand.Parameters.AddWithValue(pair.Key, pair.Value);
+          }
+        }
+
+        var dataReader = sqlCommand.ExecuteReader();
+        return dataReader;
+      }
+      catch (MySqlException ex)
+      {
+        var sCurrentFile = new System.Diagnostics.StackTrace(true).GetFrame(0).GetFileName();
+        var currentLine = new System.Diagnostics.StackTrace(true).GetFrame(0).GetFileLineNumber();
+
+        Console.WriteLine("# ERR: SQLException in " + sCurrentFile + ":" + currentLine);
+        Console.WriteLine("# ERR: " + ex.Message);
+        Console.WriteLine("# ERR: MySQL error code: " + ex.Number);
+        return null;
       }
       finally
       {
